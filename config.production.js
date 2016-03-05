@@ -1,47 +1,29 @@
 var fs = require('fs');
 var path = require('path');
 var webpack = require('webpack');
+var CleanPlugin = require('clean-webpack-plugin');
+var ExtractTextPlugin = require('extract-text-webpack-plugin');
 var autoprefixer = require('autoprefixer');
 var WebpackIsomorphicToolsPlugin = require('webpack-isomorphic-tools/plugin');
 var webpackIsomorphicToolsConfig = require('./webpack-isomorphic-tools.js');
 
-module.exports = function(baseDir, outputDir, entryPoint, host, port) {
+module.exports = function(baseDir, outputDir, entryPoint) {
     // Initialize Webpack Isomorphic Tools
     var webpackIsomorphicToolsPlugin = new WebpackIsomorphicToolsPlugin(webpackIsomorphicToolsConfig);
 
-    // Load Babel configuration from .babelrc
-    var babelrc = {};
-    try {
-        babelrc = JSON.parse(fs.readFileSync(path.join(baseDir, '.babelrc')));
-    } catch (err) {
-        console.error('Failed to parse your .babelrc.');
-        console.error(err);
-    }
-
-    // Merge global and dev-only plugins
-    var babelrcDevelopment = babelrc.env && babelrc.env.development || {};
-    var combinedPlugins = babelrc.plugins || [];
-    combinedPlugins = combinedPlugins.concat(babelrcDevelopment.plugins || []);
-
-    // Merge global, dev-only and combined plugins configrations
-    var babelLoaderQuery = Object.assign({}, babelrcDevelopment, babelrc, {plugins: combinedPlugins});
-    delete babelLoaderQuery.env;
-
     return {
-        devtool: 'inline-source-map',
+        devtool: 'source-map',
         context: baseDir,
         entry: {
             main: [
-                'webpack-hot-middleware/client?path=http://' + host + ':' + port + '/__webpack_hmr',
-                'webpack/hot/dev-server',
-                './src/client.js'
+                entryPoint
             ]
         },
         output: {
-            path: path.join(baseDir, ouputDir),
+            path: path.join(baseDir, outputDir),
             filename: '[name]-[hash].js',
             chunkFilename: '[name]-[chunkhash].js',
-            publicPath: 'http://' + host + ':' + port + '/dist/'
+            publicPath: '/dist/'
         },
         progress: true,
         resolve: {
@@ -52,13 +34,31 @@ module.exports = function(baseDir, outputDir, entryPoint, host, port) {
             extensions: ['', '.json', '.js', '.jsx']
         },
         plugins: [
-            new webpack.HotModuleReplacementPlugin(),
+            new CleanPlugin([path.join(baseDir, outputDir)], {
+                root: baseDir
+            }),
+
+            // CSS files from the extract-text-plugin loader
+            new ExtractTextPlugin('[name]-[chunkhash].css', {
+                allChunks: true
+            }),
+
             new webpack.DefinePlugin({
                 __CLIENT__: true,
                 __SERVER__: false,
-                __DEVELOPMENT__: true
+                __DEVELOPMENT__: false
             }),
-            webpackIsomorphicToolsPlugin.development()
+
+            // Optimizations
+            new webpack.optimize.DedupePlugin(),
+            new webpack.optimize.OccurrenceOrderPlugin(),
+            new webpack.optimize.UglifyJsPlugin({
+                compress: {
+                    warnings: false
+                }
+            }),
+
+            webpackIsomorphicToolsPlugin
         ],
         devServer: {
             contentBase: 'http://' + host + ':' + port,
@@ -80,10 +80,7 @@ module.exports = function(baseDir, outputDir, entryPoint, host, port) {
                 {
                     test: /\.jsx?$/,
                     exclude: /node_modules/,
-                    loaders: [
-                        'babel-loader?' + JSON.stringify(babelLoaderQuery),
-                        'eslint-loader'
-                    ]
+                    loader: 'babel-loader'
                 },
                 {
                     test: /\.json$/,
@@ -91,29 +88,26 @@ module.exports = function(baseDir, outputDir, entryPoint, host, port) {
                 },
                 {
                     test: /\.css$/,
-                    loaders: [
-                        'style',
+                    loader: ExtractTextPlugin.extract('style', [
                         'css?modules&importLoaders=2&sourceMap&localIdentName=[local]___[hash:base64:5]',
                         'postcss-loader'
-                    ]
+                    ])
                 },
                 {
                     test: /\.less$/,
-                    loaders: [
-                        'style',
+                    loader: ExtractTextPlugin.extract('style', [
                         'css?modules&importLoaders=2&sourceMap&localIdentName=[local]___[hash:base64:5]',
                         'postcss-loader',
                         'less?sourceMap'
-                    ]
+                    ])
                 },
                 {
                     test: /\.scss$/,
-                    loaders: [
-                        'style',
+                    loader: ExtractTextPlugin.extract('style', [
                         'css?modules&importLoaders=2&sourceMap&localIdentName=[local]___[hash:base64:5]',
                         'postcss-loader',
                         'sass?sourceMap&outputStyle=expanded'
-                    ]
+                    ])
                 },
                 {
                     test: /\.woff(\?v=\d+\.\d+\.\d+)?$/,
@@ -136,7 +130,7 @@ module.exports = function(baseDir, outputDir, entryPoint, host, port) {
                     loader: 'url?limit=10000&mimetype=image/svg+xml'
                 },
                 {
-                    test: webpackIsomorphicToolsPlugin.regular_expression('images'),
+                    webpackIsomorphicToolsPlugin.regular_expression('images'),
                     loader: 'url?limit=10000'
                 }
             ]

@@ -11,7 +11,7 @@ Extendable Webpack configuration for a universal/isomorphic application.
 - Loaders for other files (with proper content types): svg, ttf, woff, woff2, eot
 
 ## Installation
-```bash
+```
 $ npm install webpack-universal-config
 ```
 
@@ -26,7 +26,7 @@ var host = process.env.HOST || 'localhost';
 var port = parseInt(process.env.PORT) || 3000;
 
 // Load universal configuration
-var config = universalConfig(__dirname, path.join(__dirname, 'static', 'dist'), host, port);
+var config = universalConfig(__dirname, "./static/dist", "./src/client", host, port);
 
 // TODO: Modify the configuration here to fit your project
 
@@ -49,4 +49,20 @@ Now you can configure ESLint in `.eslintrc` and Babel in `.babelrc`. In `.babelr
         }
     }
 }
+```
+
+Run this command to start the hot-reloading development server:
+```
+$ webpack-dev-server --config <your configuration file>
+```
+
+## API
+```javascript
+var universalConfig = require('webpack-universal-config');
+
+var config = universalConfig(baseDir, outputDir, entryPoint);
+// baseDir - The root folder of the projec (e.g. __dirname)
+// outputDir - The folder in which Webpack puts processed files
+// entryPoint - Entry point of the application for Webpack
+// NOTE: both outputDir and entryPoint are relative to the baseDir
 ```
